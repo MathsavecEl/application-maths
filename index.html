@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes cours interactifs</title>
+<meta name="description" content="Cours, exercices et activités interactives.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%233d4bd8'/><path d='M18 20h18a10 10 0 0 1 10 10v16H28a10 10 0 0 1-10-10z' fill='white'/></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="conteneur">
+    <p class="surtitre" id="surtitre"></p>
+    <h1 id="titre">Mes cours</h1>
+    <p class="intro" id="presentation"></p>
+  </div>
+</header>
+
+<main class="conteneur">
+  <div class="classes" id="classes" role="group" aria-label="Choisir une classe"></div>
+  <div class="outils">
+    <label class="recherche">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="recherche" type="search" placeholder="Rechercher un cours, un chapitre…" aria-label="Rechercher un cours">
+    </label>
+  </div>
+  <div id="liste"></div>
+</main>
+
+<section class="conteneur">
+  <div class="a-propos">
+    <div>
+      <h2>À propos</h2>
+      <div id="apropos"></div>
+    </div>
+    <aside class="contact" id="contact"></aside>
+  </div>
+</section>
+
+<footer><div class="conteneur" id="pied"></div></footer>
+
+<script src="cours.js"></script>
+<script>
+  const $ = id => document.getElementById(id);
+  const echap = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const teinte = nom => (CLASSES.find(c => c.nom === nom) || {}).couleur ?? 230;
+
+  document.title = SITE.titre + (SITE.enseignant ? ' · ' + SITE.enseignant : '');
+  $('titre').textContent = SITE.titre;
+  $('presentation').textContent = SITE.presentation;
+  $('surtitre').innerHTML = [SITE.enseignant, SITE.matiere, SITE.etablissement].filter(Boolean).map(t => `<span>${echap(t)}</span>`).join('');
+  $('pied').textContent = [SITE.enseignant ? '© ' + new Date().getFullYear() + ' ' + SITE.enseignant : '', SITE.etablissement, SITE.droits, 'Site hébergé avec GitHub Pages'].filter(Boolean).join(' · ');
+
+  $('apropos').innerHTML = (SITE.aPropos || []).map(t => `<p>${echap(t)}</p>`).join('');
+  if (SITE.signature) $('apropos').innerHTML += `<p class="signature">${echap(SITE.signature)}</p>`;
+  if (SITE.blague) $('apropos').innerHTML += `<p class="blague"><span aria-hidden="true">😄</span> ${echap(SITE.blague)}</p>`;
+  if (SITE.email) {
+    $('contact').innerHTML = `<strong>Une coquille, une erreur ?</strong>
+      <p>Merci de me la signaler, je la corrigerai rapidement.</p>
+      <a class="bouton" href="mailto:${echap(SITE.email)}?subject=${encodeURIComponent('Coquille sur le site ' + SITE.titre)}">Écrire un mail</a>
+      <small>${echap(SITE.email)}</small>`;
+  } else $('contact').remove();
+
+  let choisie = new URLSearchParams(location.search).get('classe');
+  if (!CLASSES.some(c => c.nom === choisie)) choisie = null;
+
+  function afficherClasses() {
+    $('classes').innerHTML = CLASSES.map(c => {
+      const n = COURS.filter(x => x.classe === c.nom).length;
+      return `<button class="classe" style="--h:${c.couleur}" aria-pressed="${c.nom === choisie}" data-nom="${echap(c.nom)}">
+        <span class="pastille">${echap(c.court || c.nom.slice(0, 2))}</span>
+        <span><strong>${echap(c.nom)}</strong><small>${n ? n + ' ressource' + (n > 1 ? 's' : '') : 'Bientôt'}</small></span>
+      </button>`;
+    }).join('');
+    $('classes').querySelectorAll('.classe').forEach(b => b.onclick = () => {
+      choisie = choisie === b.dataset.nom ? null : b.dataset.nom;
+      history.replaceState(null, '', choisie ? '?classe=' + encodeURIComponent(choisie) : location.pathname);
+      afficherClasses(); afficherCours();
+    });
+  }
+
+  function carte(c) {
+    const h = teinte(c.classe);
+    return `<a class="carte" style="--h:${h}" href="${echap(c.lien)}">
+      <div class="meta">
+        ${c.type ? `<span class="etiquette type">${echap(c.type)}</span>` : ''}
+        ${c.chapitre ? `<span class="etiquette">${echap(c.chapitre)}</span>` : ''}
+        ${c.nouveau ? '<span class="etiquette nouveau">Nouveau</span>' : ''}
+      </div>
+      <h3>${echap(c.titre)}</h3>
+      ${c.description ? `<p>${echap(c.description)}</p>` : ''}
+      <span class="ouvrir">Ouvrir →</span>
+    </a>`;
+  }
+
+  function afficherCours() {
+    const f = $('recherche').value.trim().toLowerCase();
+    const classes = choisie ? CLASSES.filter(c => c.nom === choisie) : CLASSES;
+    let html = '';
+    classes.forEach(cl => {
+      const liste = COURS.filter(c => c.classe === cl.nom &&
+        [c.titre, c.chapitre, c.type, c.description].join(' ').toLowerCase().includes(f));
+      if (f && !liste.length) return;
+      html += `<section class="groupe" id="${encodeURIComponent(cl.nom)}">
+        <h2 style="--h:${cl.couleur}">${echap(cl.nom)} <span class="compte">${liste.length || ''}</span></h2>
+        ${liste.length ? `<div class="grille">${liste.map(carte).join('')}</div>` : '<p class="vide">Les ressources de cette classe arrivent bientôt.</p>'}
+      </section>`;
+    });
+    $('liste').innerHTML = html || '<p class="vide">Aucun résultat pour cette recherche.</p>';
+  }
+
+  $('recherche').addEventListener('input', afficherCours);
+  afficherClasses(); afficherCours();
+</script>
+</body>
+</html>
